@@ -1,0 +1,22 @@
+#!/bin/csh -f
+
+#set y = 2008
+set D=/work/irudeva/DATA/ERAint/Mslp/
+set y=1989
+set ly=1989
+
+while ( $y <= $ly )
+\rm -f j*nc
+set fNC=${D}erain.slp.${y}.nc
+#cdo -b 64 copy $fNC temp.nc
+
+#grb2nc -i output.pmsl.200901-03.grib -o j.nc
+read_nc2cmp_new -i fNC -o MSLP.$y.erain.cmp -d "longitude,latitude,time" \
+  -u msl -v PMSL  -s 0.01 \
+  -r ERAIN -g "1.5x1.5DEG" -p /home/keay/bin/udunits.dat
+
+rm temp.nc
+
+@ y = $y + 1
+end
+exit

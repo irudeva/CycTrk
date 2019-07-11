@@ -1,0 +1,9 @@
+#!/bin/csh -f
+
+@ y = 1989
+while ($y <= 2008)
+  ./run-trk.erain.year $y >&! jtrk.$y.lis
+  @ y ++
+end
+
+exit

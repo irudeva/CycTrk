@@ -1,0 +1,88 @@
+#!/bin/csh -f
+
+# Old SUN version
+##alias trackx trackAx
+
+# Hires versions (less prone to error)
+# At this stage use trackx.hr and trackmnx
+
+#alias trackx trackx.hr
+
+# Hires version of trackmnx was needed for 1990,1994,2001
+# (tracks > 120 points)
+#alias trackmnx trackmnx.hr
+
+ if ($#argv == 0) then
+   echo "Usage: run-trk.erain.year yyyy e.g 1998"
+   exit
+ else
+   @ y = ($1)
+ endif
+
+# Location of cycdat files
+
+ set CYCDAT = "."
+## set CYCDAT = .
+
+#
+ @ yp = ($y - 1)
+ @ yn = ($y + 1)
+
+echo "y,yp,yn: "$y $yp $yn
+
+ if !(-e $CYCDAT/cycdat.erain.$y) then 
+   echo "ERROR: cycdat.erain.$y not found"
+   exit
+ endif
+
+#
+ if ($y == 2000) then
+# Assume 2000 -> 20
+  @ y1 = 19
+  @ y2 = 21
+ else if ($y == 1999) then
+# Assume 2000 -> 20
+  @ y1 = 18
+  @ y2 = 20
+ else if ($y < 1999) then
+   @ y1 = ($yp - 1900)
+   @ y2 = ($yn - 1900)
+ else if ($y > 2000) then
+   @ y1 = ($yp - 2000)
+   @ y2 = ($yn - 2000)
+ endif
+
+# Update intrack.cur dastrt,dastop parameters
+ sed -e "s/YP/$y1/" intrack.erain.template | sed -e "s/YN/$y2/" | sed -e "s/YY/$y/" >! intrack.cur
+
+# Perform tracking
+# Note: Do this in /tmp to improve speed (file transfer issues at present)
+ \cp -p $CYCDAT/cycdat.erain.$y /tmp
+ \cp -p intrack.cur /tmp
+ \cp -p intrkmn.all /tmp
+ pushd /tmp
+# Perform tracking for this season (note: formatted trkdat file)
+## trackAx -FO  -i intrack.cur -c  cycdat.erain.$y >& outtr.$y && cat thist?.1 >! trkdat.erain.$y && \rm -f thist*
+# Perform tracking for this season (note: unformatted trkdat file)
+ trackx.hr  -i intrack.cur -c  cycdat.erain.$y >& outtr.$y && cat thist?.1 >! trkdat.erain.$y && \rm -f thist*
+ \rm -f cycdat.erain.$y
+# Convert to text format
+ trackmnx.hr -i intrkmn.all -o trkdat.erain.$y.txt trkdat.erain.$y
+ \rm -f trkdat.erain.$y
+# NOTE: Check for rare NAN code in q column of track file
+ \cp trkdat.erain.$y.txt trkdat.tmp
+ @ nan = `grep -i nan trkdat.tmp | wc -l`
+ if ($nan > 0) then
+   sed -e "s/\ \ nan/0\.999/" trkdat.tmp >! trkdat2.tmp && \mv trkdat2.tmp trkdat.tmp
+   \mv  trkdat.tmp trkdat.erain.$y.txt
+ endif
+#
+ popd
+ \cp -p /tmp/trkdat.erain.$y.txt trkdat.erain.$y
+ \cp -p /tmp/outtr.$y .
+ \rm -f /tmp/{trkdat.erain.$y.txt,outtr.$y,intrack.cur,intrkmn.all}
+
+# Compress trkdat file - if desired!
+# gzip -f trkdat.erain.$y
+
+exit

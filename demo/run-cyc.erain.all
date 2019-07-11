@@ -1,0 +1,10 @@
+#!/bin/csh -f
+
+@ y = 1989
+while ($y <= 1989)  # 2006-2007 already done as test
+echo $y
+  ./run-cyc.erain.year $y >&! jcyc.$y.lis
+  @ y ++
+end
+
+exit

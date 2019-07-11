@@ -1,0 +1,144 @@
+#!/bin/csh -f
+
+ if ($#argv == 0) then
+   echo "Usage: run-cyc.erain.year yyyy e.g 1998"
+   exit
+ else
+   @ y = ($1)
+ endif
+
+echo "Start run-cyc"
+
+alias edcyc3=/work/keay/bin/edcyc3
+
+# Location of MSLP CMP files
+
+## set CMPDIR = /work9/kevin/erain/mslp
+## set CMPDIR = /work5/kevin/erain/data/pmsl
+ set CMPDIR = "." 
+
+# Set up limits for current year with extra months to form DJF;
+# allow 15 days extension for cyclogenesis/lysis
+ @ yp = ($y - 1)
+ @ yn = ($y + 1)
+
+echo "y,yp,yn: "$y $yp $yn
+set ileapp = `getleap $yp`
+echo "ileapp: "$ileapp
+ @ d2p = 365
+ if ($ileapp == 1) then
+   @ d2p = 366
+ endif
+ @ d1p = ($d2p - 45)
+
+ @ d1n = 1
+ @ d2n = 15   
+
+ @ m1p = ($d1p * 4 - 3)
+ @ m2p = ($d2p * 4)
+ @ m1n = ($d1n * 4 - 3)
+ @ m2n = ($d2n * 4)
+
+# Form CMP file for extended year
+# Note: splitcon2 -M option
+
+ if -e $CMPDIR/MSLP.$yp.erain.cmp then 
+   splitcon2 -l -n -M "$m1p,$m2p" $CMPDIR/MSLP.$yp.erain.cmp
+ endif
+ splitcon2 -l -n $CMPDIR/MSLP.$y.erain.cmp
+ if -e $CMPDIR/MSLP.$yn.erain.cmp then 
+   splitcon2 -l -n -M "$m1n,$m2n" $CMPDIR/MSLP.$yn.erain.cmp
+ endif
+# Break up cat since too many arguments
+ if ($y > 1979) then  # 1979 is first available year
+   cat pmsl.erain.${yp}*cmp >! pmsl.cmp
+   cat pmsl.erain.${y}*cmp >> pmsl.cmp
+   cat pmsl.erain.${yn}*cmp >> pmsl.cmp
+ else
+   cat pmsl.erain.${y}*cmp >! pmsl.cmp
+   cat pmsl.erain.${yn}*cmp >> pmsl.cmp
+ endif
+# Break up rm since too many arguments
+ \rm -f pmsl.erain.${yp}*cmp
+ \rm -f pmsl.erain.${y}*cmp
+ \rm -f pmsl.erain.${yn}*cmp
+
+ if ($y == 2000) then
+# Assume 2000 -> 20
+   set dastrt = 191115
+   set dastop = 210115
+ else if ($y == 1999) then
+# Assume 2000 -> 20
+   set dastrt = 181115
+   set dastop = 200115
+ else if ($y < 1999) then
+   @ y1 = ($yp - 1900)
+   @ y2 = ($yn - 1900)
+   set dastrt = ${y1}1115
+   set dastop = ${y2}0115
+ else if ($y > 2000) then
+   @ y1 = ($yp - 2000)
+   @ y2 = ($yn - 2000)
+   set dastrt = ${y1}1115
+#   set dastop = ${y2}0115
+   set dastop = ${y}0630
+ endif
+
+# Special processing for 1999 and 2000
+# 2000 -> 20
+
+ if ($y == 1999 || $y == 2000) then
+   splitcon -n -l pmsl.cmp
+   \rm -f pmsl.cmp
+   foreach f (pmsl.erain.1?????????.cmp)
+     cycadjtime -y -1980 -i $f
+   end
+   foreach f (pmsl.erain.2?????????.cmp)
+     cycadjtime -y -1980 -i $f
+   end
+   if ($y == 1999) then
+     cat pmsl.erain.0018??????.cmp >! pmsl_${y}.cmp
+     cat pmsl.erain.0019??????.cmp >> pmsl_${y}.cmp
+     cat pmsl.erain.0020??????.cmp >> pmsl_${y}.cmp
+     \rm -f pmsl.erain.0018??????.cmp
+     \rm -f pmsl.erain.0019??????.cmp
+     \rm -f pmsl.erain.0020??????.cmp
+     \rm -f pmsl.erain.1998??????.cmp
+     \rm -f pmsl.erain.1999??????.cmp
+     \rm -f pmsl.erain.2000??????.cmp
+   else
+     cat pmsl.erain.0019??????.cmp >! pmsl_${y}.cmp
+     cat pmsl.erain.0020??????.cmp >> pmsl_${y}.cmp
+     cat pmsl.erain.0021??????.cmp >> pmsl_${y}.cmp
+     \rm -f pmsl.erain.0019??????.cmp
+     \rm -f pmsl.erain.0020??????.cmp
+     \rm -f pmsl.erain.0021??????.cmp
+     \rm -f pmsl.erain.1999??????.cmp
+     \rm -f pmsl.erain.2000??????.cmp
+     \rm -f pmsl.erain.2001??????.cmp
+   endif
+   \mv pmsl_${y}.cmp pmsl.cmp
+ endif
+
+## Move temporary MSLP file to /tmp (faster?)
+ \mv pmsl.cmp /tmp
+
+# Update incycloc.cur dastrt,dastop parameters
+ echo "dastrt, dastop: "$dastrt $dastop
+ sed -e "s/DASTRT/$dastrt/" incycloc.erain.template | sed -e "s/DASTOP/$dastop/" >! incycloc.cur
+
+# Find cyclone positions 
+ echo "cyclocx"
+ cyclocx.hr -i incycloc.cur -c /tmp/cycdat.erain.$y -z zs.erain.cmp /tmp/pmsl.cmp 
+
+# Move cycdat file from /tmp to current directory
+ \mv /tmp/cycdat.erain.$y .
+
+# Remove temporary MSLP file
+ \rm -f /tmp/pmsl.cmp
+
+# Ensure that all systems haev DP > 0.1 hPa
+ echo "edcyc3"
+ edcyc3 -c cycdat.erain.$y -i inedcyc -o edcyc -a "dp 0.1" && \mv edcyc cycdat.erain.$y
+
+exit
